@@ -15,10 +15,16 @@
     "lucide-react": "latest",
     "firebase": "latest",
     "firebase-admin": "latest",
+    "@google/generative-ai": "latest",
+    "cloudinary": "latest",
+    "recharts": "latest",
+    "jspdf": "latest",
+    "html2canvas": "latest",
     "framer-motion": "latest",
     "next-themes": "latest",
     "clsx": "latest",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "axios": "latest"
   },
   "devDependencies": {
     "typescript": "latest",
