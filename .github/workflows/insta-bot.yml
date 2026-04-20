@@ -1,39 +1,54 @@
 name: BaseKey Ghost Engine - Auto Gateway
+
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
-  repository_dispatch:
+    - cron: '0 * * * *'      # Har ghante automatic chalega (Hourly Polling)
+  workflow_dispatch:          # Dashboard ke button ke liye (Manual Trigger)
+  repository_dispatch:        # Vercel API ke liye (Remote Trigger)
     types: [start_ghost_automation]
+
+# Ek baar mein sirf ek hi bot chalne ka rule (Safety Lock)
+concurrency:
+  group: ghost-sync-group
+  cancel-in-progress: false
 
 jobs:
   automate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15       # Safety: 15 min se zyada chala toh band kar dega
+
     steps:
-      - name: Checkout Repository
+      - name: 📂 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'        # Dependency caching for speed
 
-      - name: Install Puppeteer Dependencies
-        # Ubuntu 24.04 ke liye libasound2t64 zaroori hai
+      - name: 🛠️ Install Puppeteer System Deps
+        # Puppeteer ko Linux par chalne ke liye ye sab chahiye
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2t64
+          sudo apt-get install -y \
+            libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 \
+            libasound2t64 libpangocairo-1.0-0 libxss1 libxshmfence1 \
+            libu2f-udev libvulkan1
 
-      - name: Install Project Dependencies
-        run: npm install puppeteer cloudinary firebase-admin
+      - name: 📦 Install Project Packages
+        run: npm install
 
-      - name: Run Ghost Bot
+      - name: 👻 Run Ghost Sniper Bot
         run: node bot.js
         env:
-          # Inhe GitHub Secrets se hi connect rehne do, tabhi 'Automatic' kaam karega
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
-          
+
+      - name: ✅ Status Check
+        if: success()
+        run: echo "Ghost Sync Completed Successfully!"
+        
