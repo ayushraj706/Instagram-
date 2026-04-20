@@ -14,6 +14,9 @@
     "react-dom": "latest",
     "lucide-react": "latest",
     "firebase": "latest",
+    "firebase-admin": "latest",
+    "framer-motion": "latest",
+    "next-themes": "latest",
     "clsx": "latest",
     "tailwind-merge": "latest"
   },
