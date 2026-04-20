@@ -1,10 +1,10 @@
-name: BaseKey Ghost Engine
+name: BaseKey Ghost Engine - No Cookies
 on:
   schedule:
-    - cron: '0 * * * *' # Har 1 ghante mein (Zyada baar mat chalana, account risk hota hai)
-  workflow_dispatch: # GitHub se manual chalu karne ke liye
+    - cron: '0 * * * *'
+  workflow_dispatch:
   repository_dispatch:
-    types: [start_ghost_automation] # Website se trigger karne ke liye
+    types: [start_ghost_automation]
 
 jobs:
   automate:
@@ -17,10 +17,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install Puppeteer Dependencies
-        # GitHub server par Chrome chalane ke liye ye zaroori libraries hain
         run: |
           sudo apt-get update
           sudo apt-get install -y libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2
@@ -28,11 +26,9 @@ jobs:
       - name: Install Project Dependencies
         run: npm install puppeteer cloudinary firebase-admin
 
-      - name: Run Ghost Browser Bot
+      - name: Run Ghost Bot
         run: node bot.js
         env:
-          # Inhe GitHub Settings > Secrets > Actions mein zaroor daalna
-          INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
