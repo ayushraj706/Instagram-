@@ -2,7 +2,7 @@ name: BaseKey Ghost Engine - Auto Gateway
 
 on:
   schedule:
-    - cron: '0 */6 * * *'      # RATE LIMIT FIX: Ab ye har 6 ghante mein chalega (429 se bachne ke liye)
+    - cron: '0 */6 * * *'      # Har 6 ghante mein chalega
   workflow_dispatch:          # Manual button
   repository_dispatch:        
     types: [start_ghost_automation]
@@ -25,8 +25,7 @@ jobs:
         with:
           node-version: '20'
 
-      # --- 💾 ASLI MAGIC: SESSION CACHING ---
-      # Ye step 'user_data' folder ko save karega taaki baar-baar login na karna pade
+      # --- 💾 SESSION CACHING ---
       - name: 💾 Cache Browser Session
         uses: actions/cache@v4
         with:
@@ -35,16 +34,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-insta-session-
 
-      - name: 🛠️ Install Puppeteer System Deps
+      - name: 🛠️ Install Puppeteer & Video Deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            ffmpeg \
             libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 \
             libasound2t64 libpangocairo-1.0-0 libxss1 libxshmfence1 \
             libu2f-udev libvulkan1
 
       - name: 📦 Install Project Packages
-        run: npm install puppeteer cloudinary firebase-admin
+        # Yahan 'puppeteer-screen-recorder' add kiya h
+        run: npm install puppeteer cloudinary firebase-admin puppeteer-screen-recorder
 
       - name: 👻 Run Ghost Sniper Bot
         run: node bot.js
