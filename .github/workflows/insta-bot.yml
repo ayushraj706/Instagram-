@@ -2,8 +2,8 @@ name: BaseKey Ghost Engine - Auto Gateway
 
 on:
   schedule:
-    - cron: '0 */6 * * *'      # Har 6 ghante mein (Rate limit se bachne ke liye)
-  workflow_dispatch:          # Manual trigger button
+    - cron: '0 */6 * * *'      # Har 6 ghante mein automatic chalega
+  workflow_dispatch:          # Manual Run button ke liye
   repository_dispatch:        
     types: [start_ghost_automation]
 
@@ -26,32 +26,32 @@ jobs:
           node-version: '20'
 
       # --- 💾 SESSION CACHING ---
-      # Ye step 'user_data' folder ko save karega taaki login session bana rahe
       - name: 💾 Cache Browser Session
         uses: actions/cache@v4
         with:
           path: ./user_data
-          key: ${{ runner.os }}-insta-session-${{ github.run_id }}
+          key: ${{ runner.os }}-insta-session-v13
           restore-keys: |
             ${{ runner.os }}-insta-session-
 
-      - name: 🛠️ Install System Deps (FFMPEG & Puppeteer)
+      - name: 🛠️ Install Xvfb, FFMPEG & Puppeteer Deps
+        # Yahan 'xvfb' install ho raha h jo virtual screen banayega
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            ffmpeg \
+            xvfb ffmpeg \
             libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 \
             libasound2t64 libpangocairo-1.0-0 libxss1 libxshmfence1 \
             libu2f-udev libvulkan1
 
       - name: 📦 Install Project Packages
-        # Yahan Stealth Plugins aur Video Recorder add kiya gaya h
         run: |
           npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth \
           cloudinary firebase-admin puppeteer-screen-recorder
 
-      - name: 👻 Run Ghost Stealth Bot
-        run: node bot.js
+      - name: 👻 Run Ghost Stealth Bot (With Xvfb Display)
+        # 'xvfb-run' command browser ko ek virtual monitor (1280x1024) deta h
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" node bot.js
         env:
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           INSTA_USER: ${{ secrets.INSTA_USER }}
@@ -63,5 +63,5 @@ jobs:
 
       - name: ✅ Status Check
         if: success()
-        run: echo "Ghost Stealth Mode Sync Completed!"
+        run: echo "Ghost V13 Stealth Sync Completed!"
         
