@@ -32,12 +32,12 @@ async function debugSnap(page, stepName) {
 }
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: Sniper Mode V7 (Blue Button Fix + Session)...");
+  console.log("🚀 GHOST_ENGINE: Sniper Mode V8 (Username Fix + Wait Logic)...");
   
   const userDataDir = path.join(__dirname, 'user_data');
   const browser = await puppeteer.launch({ 
     headless: "new",
-    userDataDir: userDataDir, // Session save karne ke liye
+    userDataDir: userDataDir,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'] 
   });
   
@@ -49,12 +49,14 @@ async function runBot() {
     // 1. Initial Load
     console.log("🔑 Opening Login Page...");
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
-    await new Promise(r => setTimeout(r, 7000));
+    await new Promise(r => setTimeout(r, 8000));
     await debugSnap(page, "1_Initial_Load");
 
-    // 2. Account Click Logic (ayush_raj6888)
+    // 2. Account Check & Entry
     const targetUser = process.env.INSTA_USER || "ayush_raj6888";
-    const clicked = await page.evaluate((user) => {
+    
+    // Pehle check karo "Choose Account" wala dabba h ya nahi
+    const isModalPresent = await page.evaluate((user) => {
       const elements = Array.from(document.querySelectorAll('div, span, button, p'));
       const target = elements.find(el => el.textContent.trim() === user);
       if (target) {
@@ -65,48 +67,60 @@ async function runBot() {
       return false;
     }, targetUser);
 
-    if (clicked) {
-      console.log("🖱️ Account Found! Clicking...");
+    if (isModalPresent) {
+      console.log("🖱️ Account Modal Found & Clicked.");
       await new Promise(r => setTimeout(r, 5000));
-      await debugSnap(page, "2_After_Account_Click");
     }
 
-    // 3. Password & Blue Button Click
-    const passBox = await page.$('input[name="password"]');
-    if (passBox) {
+    // 3. FULL CREDENTIALS ENTRY (Username + Password)
+    console.log("📝 Filling Credentials...");
+    
+    const userField = await page.$('input[name="username"]');
+    if (userField) {
+      // Check agar username field khaali h tabhi bharega
+      const currentVal = await page.evaluate(el => el.value, userField);
+      if (!currentVal) {
+        console.log("👤 Typing Username...");
+        await page.type('input[name="username"]', targetUser, { delay: 100 });
+      }
+    }
+
+    const passField = await page.$('input[name="password"]');
+    if (passField) {
       console.log("🔑 Typing Password...");
-      await page.type('input[name="password"]', process.env.INSTA_PASS, { delay: 150 });
-      
-      // Blue Button Sniper: Ye dhoondhega Log In wala button
-      await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const loginBtn = btns.find(b => b.textContent.includes('Log In') || b.type === 'submit');
-        if (loginBtn) {
-            loginBtn.style.border = "5px solid red"; // Debugging ke liye red border
-            loginBtn.click();
-        }
-      });
-      
-      console.log("🚀 Blue Button Clicked! Waiting for result...");
-      await new Promise(r => setTimeout(r, 10000));
-      await debugSnap(page, "3_After_Blue_Button_Click"); // Is photo mein dikhega ki click hua ya nahi
+      await page.type('input[name="password"]', process.env.INSTA_PASS, { delay: 100 });
+      await debugSnap(page, "2_Before_Login_Click"); // Screenshot Credentials bharne ke baad
     }
 
-    // 4. Verify Login Result
+    // 4. CLICK LOGIN BUTTON
+    console.log("🚀 Clicking Blue Login Button...");
+    await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      const loginBtn = btns.find(b => b.textContent.includes('Log In') || b.type === 'submit' || b.textContent.includes('Login'));
+      if (loginBtn) {
+        loginBtn.style.border = "5px solid red"; // Red border for debugging
+        loginBtn.click();
+      }
+    });
+
+    // Login ke baad thoda zyada rukna h (12 second)
+    console.log("⏳ Waiting for Dashboard to load...");
+    await new Promise(r => setTimeout(r, 12000));
+    await debugSnap(page, "3_After_Login_Wait"); // Is photo mein asli result dikhega
+
+    // 5. Verify & Scrape
     const isLoggedIn = await page.evaluate(() => {
-        return !document.body.innerText.includes('Log In') && (!!document.querySelector('nav') || !!document.querySelector('a[href*="/direct/inbox/"]'));
+      return !document.body.innerText.includes('Log In') && (!!document.querySelector('nav') || !!document.querySelector('a[href*="/direct/inbox/"]'));
     });
 
     if (!isLoggedIn) {
-      console.log("❌ LOGIN FAIL: Dashboard nahi aaya.");
-      await debugSnap(page, "4_Login_Failed_Final_View");
+      console.log("❌ LOGIN FAILED: Manual check needed.");
       return;
     }
-    console.log("✅ LOGIN SUCCESS! Ghost is inside.");
+    console.log("✅ LOGIN SUCCESS! Scanning targets...");
 
-    // 5. Target Scanning
-    const targetUsers = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
-    for (const user of targetUsers) {
+    const targets = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
+    for (const user of targets) {
       console.log(`\n📡 SCANNING: @${user}`);
       await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
       await new Promise(r => setTimeout(r, 6000));
