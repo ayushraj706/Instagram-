@@ -1,4 +1,4 @@
-name: BaseKey Ghost Engine - No Cookies
+name: BaseKey Ghost Engine - Auto Gateway
 on:
   schedule:
     - cron: '0 * * * *'
@@ -19,9 +19,10 @@ jobs:
           node-version: '20'
 
       - name: Install Puppeteer Dependencies
+        # Ubuntu 24.04 ke liye libasound2t64 zaroori hai
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2
+          sudo apt-get install -y libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2t64
 
       - name: Install Project Dependencies
         run: npm install puppeteer cloudinary firebase-admin
@@ -29,6 +30,8 @@ jobs:
       - name: Run Ghost Bot
         run: node bot.js
         env:
+          # Inhe GitHub Secrets se hi connect rehne do, tabhi 'Automatic' kaam karega
+          INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
