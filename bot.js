@@ -2,14 +2,12 @@ const puppeteer = require('puppeteer');
 const cloudinary = require('cloudinary').v2;
 const admin = require('firebase-admin');
 
-// 1. Cloudinary Setup
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// 2. Firebase Setup
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_KEY))
@@ -18,7 +16,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: Triple-Combo Mode (Cookies + Choose Account)...");
+  console.log("🚀 GHOST_ENGINE: Stealth Sniper Mode (Fixing 429)...");
   
   const browser = await puppeteer.launch({ 
     headless: "new",
@@ -30,27 +28,34 @@ async function runBot() {
   await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
 
   try {
-    // --- STEP 1: LOAD COOKIES FIRST ---
+    // 1. Cookies Load Karo
     if (process.env.INSTA_COOKIES) {
-      console.log("🍪 Loading existing cookies to trigger account recognition...");
-      const cookies = JSON.parse(process.env.INSTA_COOKIES);
-      await page.setCookie(...cookies);
+      console.log("🍪 Loading cookies to bypass login wall...");
+      await page.setCookie(...JSON.parse(process.env.INSTA_COOKIES));
     }
 
     console.log("🔑 Opening Instagram Login Page...");
-    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
-    await new Promise(r => setTimeout(r, 7000));
-
-    // --- STEP 2: SMART "CHOOSE ACCOUNT" CLICKER ---
-    const targetUser = process.env.INSTA_USER || "ayush_raj6888";
+    const response = await page.goto('https://www.instagram.com/accounts/login/', { 
+      waitUntil: 'networkidle2',
+      timeout: 60000 
+    });
     
+    // --- 429 ERROR CHECK ---
+    if (response.status() === 429) {
+      console.log("❌ RATE LIMITED (429): Instagram ne IP block kiya hai. GitHub Actions ko thodi der rest chahiye.");
+      const shot = await page.screenshot();
+      await new Promise(res => cloudinary.uploader.upload_stream({ folder: "debug", public_id: "error_429_view" }, res).end(shot));
+      return;
+    }
+
+    await new Promise(r => setTimeout(r, 10000)); // Thoda zyada wait loading ke liye
+
+    // 2. Account Choose Logic (Pichle screenshot wala jugaad)
+    const targetUser = process.env.INSTA_USER || "ayush_raj6888";
     const accountClicked = await page.evaluate((user) => {
-      // Dhoondho ki kya page par kahi tumhara username likha h
-      const elements = Array.from(document.querySelectorAll('button, div[role="button"], span'));
-      const targetBtn = elements.find(el => el.textContent.includes(user));
-      
-      if (targetBtn) {
-        const clickable = targetBtn.closest('button') || targetBtn.closest('div[role="button"]') || targetBtn;
+      const btn = Array.from(document.querySelectorAll('*')).find(el => el.textContent.trim().includes(user));
+      if (btn) {
+        const clickable = btn.closest('button') || btn.closest('div[role="button"]') || btn;
         clickable.click();
         return true;
       }
@@ -58,65 +63,56 @@ async function runBot() {
     }, targetUser);
 
     if (accountClicked) {
-      console.log(`   🖱️ Account ${targetUser} found! Clicking to bypass username field...`);
-      await new Promise(r => setTimeout(r, 4000));
+      console.log(`   🖱️ Account ${targetUser} clicked. Waiting for password field...`);
+      await new Promise(r => setTimeout(r, 8000));
     }
 
-    // --- STEP 3: PASSWORD ENTRY ---
-    try {
-      console.log("⏳ Waiting for password field...");
-      await page.waitForSelector('input[name="password"]', { visible: true, timeout: 15000 });
-      
-      // Agar username field khali h aur account click nahi hua, toh username bhi bhar do (Fallback)
-      const needsUser = await page.evaluate(() => {
-        const userField = document.querySelector('input[name="username"]');
-        return userField && userField.value === "";
-      });
-
-      if (needsUser) {
-        await page.type('input[name="username"]', process.env.INSTA_USER, { delay: 100 });
-      }
-
-      await page.type('input[name="password"]', process.env.INSTA_PASS, { delay: 100 });
+    // 3. Password Entry
+    const passwordBox = await page.$('input[name="password"]');
+    if (passwordBox) {
+      await page.type('input[name="password"]', process.env.INSTA_PASS, { delay: 200 });
       await page.click('button[type="submit"]');
-      console.log("🚀 Login button clicked. Waiting for redirection...");
-      await new Promise(r => setTimeout(r, 12000));
-    } catch (e) {
-      console.log("⚠️ Password field nahi mila ya login page different h. Taking debug shot...");
-      const shot = await page.screenshot();
-      await new Promise(res => cloudinary.uploader.upload_stream({ folder: "debug", public_id: "login_step_fail" }, res).end(shot));
+      console.log("🚀 Submit clicked. Waiting for Dashboard...");
+      await new Promise(r => setTimeout(r, 15000));
     }
 
-    // --- STEP 4: VERIFY & SCAN ---
-    const isLoggedIn = await page.evaluate(() => !document.body.innerText.includes('Log In'));
+    // 4. STRICT LOGIN VERIFICATION
+    const isLoggedIn = await page.evaluate(() => {
+        // Sirf "Log In" text na hona kaafi nahi h, humein feed ya profile icon dhoondhna hoga
+        return !document.body.innerText.includes('Log In') && 
+               (!!document.querySelector('nav') || !!document.querySelector('a[href*="/direct/inbox/"]'));
+    });
+
     if (!isLoggedIn) {
-        console.log("❌ LOGIN FAIL: Abhi bhi bahar h. Check debug folder in Cloudinary.");
-        return;
+      console.log("❌ LOGIN FAILED: Page didn't redirect to home.");
+      const failShot = await page.screenshot();
+      await new Promise(res => cloudinary.uploader.upload_stream({ folder: "debug", public_id: "final_login_fail" }, res).end(failShot));
+      return;
     }
-    console.log("✅ LOGIN SUCCESS! Scanning targets...");
+    console.log("✅ LOGIN VERIFIED: Ghost is inside. Scanning targets...");
 
+    // 5. Target Scanning
     const targetUsers = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
-
     for (const user of targetUsers) {
       console.log(`\n📡 SCANNING: @${user}`);
       await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-      await new Promise(r => setTimeout(r, 6000));
+      await new Promise(r => setTimeout(r, 8000)); // Thoda slow scan taaki block na ho
 
       const media = await page.evaluate(() => {
-        const items = Array.from(document.querySelectorAll('article img, div._aagv img, video, img[srcset]'))
+        const items = Array.from(document.querySelectorAll('img[srcset], article img, video, div._aagv img'))
                            .map(el => el.src || el.srcset?.split(' ')[0] || el.querySelector('source')?.src)
                            .filter(src => src && src.includes('cdninstagram.com'));
         return [...new Set(items)];
       });
 
-      console.log(`   📊 Found ${media.length} items.`);
+      console.log(`   📊 @${user}: Found ${media.length} items.`);
       for (const mUrl of media) {
         await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
       }
     }
 
   } catch (error) {
-    console.error("❌ Fatal Error:", error.message);
+    console.error("❌ ERROR:", error.message);
   } finally {
     await browser.close();
     console.log("🏁 Cycle Complete.");
