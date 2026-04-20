@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer-extra'); // Updated to extra
+const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
@@ -22,7 +22,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: Stealth Mode V11 (Bypassing Detection)...");
+  console.log("🚀 GHOST_ENGINE: Sniper Mode V12 (Ultra-Slow Stealth)...");
   
   const browser = await puppeteer.launch({ 
     headless: "new",
@@ -31,7 +31,7 @@ async function runBot() {
       '--disable-setuid-sandbox', 
       '--disable-dev-shm-usage',
       '--disable-gpu',
-      '--disable-blink-features=AutomationControlled' // Asli Magic yahan h
+      '--disable-blink-features=AutomationControlled'
     ] 
   });
   
@@ -54,39 +54,50 @@ async function runBot() {
     // 1. Visit Login
     console.log("🔑 Opening Login Page...");
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
-    await new Promise(r => setTimeout(r, 8000));
+    await new Promise(r => setTimeout(r, 5000)); // Page load hone ka wait
 
-    // 2. Human-like Typing (Ab hum seedha value nahi chipkayenge)
+    // 2. Typing with Slow Delay (350ms per character)
     const targetUser = process.env.INSTA_USER || "ayush_raj6888";
     const targetPass = process.env.INSTA_PASS;
 
-    console.log("👤 Typing Username...");
-    await page.type('input[name="username"]', targetUser, { delay: 150 });
+    console.log("👤 Typing Username (Slow)...");
+    await page.type('input[name="username"]', targetUser, { delay: 350 });
+    await new Promise(r => setTimeout(r, 3000)); // Gap between fields
     
-    console.log("🔑 Typing Password...");
-    await page.type('input[name="password"]', targetPass, { delay: 150 });
-    
-    // Password Unhide logic (Sirf verification ke liye)
+    console.log("🔑 Typing Password (Slow)...");
+    await page.type('input[name="password"]', targetPass, { delay: 350 });
+    await new Promise(r => setTimeout(r, 3000));
+
+    // Password Unhide (Verification ke liye zaroori h)
     await page.evaluate(() => {
       const p = document.querySelector('input[name="password"]');
       if (p) p.type = "text";
     });
+    await new Promise(r => setTimeout(r, 2000));
 
-    // 3. Click Login Button
-    console.log("🚀 Clicking Login...");
-    const loginBtn = await page.$('button[type="submit"]');
-    if (loginBtn) {
-        await loginBtn.click();
-    } else {
-        // Fallback agar selector change hua ho
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Log'));
-            if (btn) btn.click();
-        });
+    // 3. AGGRESSIVE CLICK LOGIC
+    console.log("🚀 Attempting to Click Login Button...");
+    const loginClicked = await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button')).find(b => 
+            b.type === 'submit' || 
+            b.innerText.toLowerCase().includes('log') || 
+            b.textContent.toLowerCase().includes('log')
+        );
+        if (btn) {
+            btn.style.backgroundColor = "red"; // Video mein dikhega ki target hua
+            btn.click();
+            return true;
+        }
+        return false;
+    });
+
+    if (!loginClicked) {
+        console.log("⚠️ Button direct nahi mila, forcing submit...");
+        await page.keyboard.press('Enter');
     }
 
-    console.log("⏳ Waiting for Dashboard (20s)...");
-    await new Promise(r => setTimeout(r, 20000));
+    console.log("⏳ Waiting for Dashboard (30 seconds)...");
+    await new Promise(r => setTimeout(r, 30000)); // Redirect ke liye zyada wait
 
     // 4. Verification Check
     const loginSuccess = await page.evaluate(() => {
@@ -95,15 +106,15 @@ async function runBot() {
     });
 
     if (!loginSuccess) {
-      console.log("❌ LOGIN FAIL: Detection still active or checkpoint triggered.");
+      console.log("❌ LOGIN FAIL: Check the video if it asked for OTP or just refreshed.");
     } else {
-      console.log("✅ LOGIN SUCCESS! Scanning targets...");
+      console.log("✅ LOGIN SUCCESS! Starting targets...");
       
       const targets = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
       for (const user of targets) {
         console.log(`📡 Scanning: @${user}`);
         await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-        await new Promise(r => setTimeout(r, 8000));
+        await new Promise(r => setTimeout(r, 10000)); // Profile load hone ka wait
         
         const media = await page.evaluate(() => {
           const results = [];
@@ -131,7 +142,7 @@ async function runBot() {
       await cloudinary.uploader.upload(videoPath, { 
         resource_type: "video", 
         folder: "debug/recordings",
-        public_id: `stealth_session_${Date.now()}`
+        public_id: `stealth_v12_${Date.now()}`
       }).catch(e => console.log("Video Upload Error:", e.message));
     }
   }
