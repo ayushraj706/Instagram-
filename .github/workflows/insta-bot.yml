@@ -2,9 +2,9 @@ name: BaseKey Ghost Engine - Auto Gateway
 
 on:
   schedule:
-    - cron: '0 * * * *'      # Har ghante automatic chalega
-  workflow_dispatch:          # Manual button ke liye
-  repository_dispatch:        # Vercel Trigger ke liye
+    - cron: '0 */6 * * *'      # RATE LIMIT FIX: Ab ye har 6 ghante mein chalega (429 se bachne ke liye)
+  workflow_dispatch:          # Manual button
+  repository_dispatch:        
     types: [start_ghost_automation]
 
 concurrency:
@@ -25,6 +25,16 @@ jobs:
         with:
           node-version: '20'
 
+      # --- 💾 ASLI MAGIC: SESSION CACHING ---
+      # Ye step 'user_data' folder ko save karega taaki baar-baar login na karna pade
+      - name: 💾 Cache Browser Session
+        uses: actions/cache@v4
+        with:
+          path: ./user_data
+          key: ${{ runner.os }}-insta-session-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-insta-session-
+
       - name: 🛠️ Install Puppeteer System Deps
         run: |
           sudo apt-get update
@@ -39,7 +49,6 @@ jobs:
       - name: 👻 Run Ghost Sniper Bot
         run: node bot.js
         env:
-          # TRIPLE COMBO: Cookies + User + Pass
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           INSTA_USER: ${{ secrets.INSTA_USER }}
           INSTA_PASS: ${{ secrets.INSTA_PASS }}
