@@ -16,10 +16,10 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 BASEKEY_GHOST_MAX: Deep Archive Initiated...");
+  console.log("🚀 BASEKEY_GHOST_VAULT: Starting Deep Mirror for Specific IDs...");
   const browser = await puppeteer.launch({ 
     headless: "new",
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] 
+    args: ['--no-sandbox', '--disable-setuid-sandbox'] 
   });
   
   const page = await browser.newPage();
@@ -28,108 +28,93 @@ async function runBot() {
   try {
     const cookies = JSON.parse(process.env.INSTA_COOKIES);
     await page.setCookie(...cookies);
-    
-    // 1. Unified Contact List (Followers + Following)
-    console.log("🔗 Extracting Contact List...");
-    await page.goto('https://www.instagram.com/reels/contacts/', { waitUntil: 'networkidle2' });
-    
-    const targets = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll('a[href*="/"]'));
-      return [...new Set(links.map(l => l.getAttribute('href').replace(/\//g, '')))]
-             .filter(n => n.length > 3 && !['explore', 'reels', 'direct', 'accounts', 'legal', 'emails'].includes(n));
-    });
 
-    console.log(`✅ Targets Identified: ${targets.length} users.`);
+    // 1. Tumhari requested IDs
+    const targetUsers = [
+      "_anshu_2101", 
+      "_cool_butterfly_.6284", 
+      "dee_pu3477", 
+      "ritu_singh785903"
+    ];
 
-    for (const user of targets) {
-      console.log(`\n📂 Processing: @${user}`);
-      
-      // A. Profile Picture (DP) Capture
+    for (const user of targetUsers) {
+      console.log(`\n📂 Scraping @${user} (Private Access)`);
       await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
+      await new Promise(r => setTimeout(r, 5000));
+
+      // 2. Profile Picture (DP)
       const dpUrl = await page.evaluate(() => {
         const img = document.querySelector('header img') || document.querySelector('img[alt*="profile picture"]');
         return img ? img.src : null;
       });
       if(dpUrl) await safeUpload(dpUrl, user, 'profile_pic');
 
-      // B. Stories Capture (Direct URL check)
-      console.log(`  └─ Checking Stories...`);
-      await page.goto(`https://www.instagram.com/stories/${user}/`, { waitUntil: 'networkidle2' });
-      const storyMedia = await page.evaluate(() => {
-        const media = Array.from(document.querySelectorAll('img[srcset], video source')).map(el => el.src || el.srcset);
-        return media.filter(m => m && m.includes('cdninstagram'));
+      // 3. Saved Stories (Highlights) - Following button ke niche wale
+      console.log(`  └─ Extracting Highlights (Saved Stories)...`);
+      const highlightUrls = await page.evaluate(() => {
+        // Highlights ke circles aksar images hote hain
+        const circles = Array.from(document.querySelectorAll('canvas')).map(c => c.closest('div')?.querySelector('img')?.src);
+        return circles.filter(src => src && src.includes('cdninstagram.com'));
       });
-      for (const sUrl of storyMedia) await safeUpload(sUrl, user, 'story');
+      for (const hUrl of highlightUrls) await safeUpload(hUrl, user, 'highlights');
 
-      // C. Deep Posts Capture (Auto-Scroll for 1000+ posts)
-      await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-      console.log(`  └─ Extracting All Posts (Scrolling)...`);
-      
-      let lastHeight = 0;
+      // 4. Posts (Auto-Scroll)
+      console.log(`  └─ Mirroring All Posts...`);
       let postUrls = new Set();
-
-      while (true) {
-        const newPosts = await page.evaluate(() => {
-          return Array.from(document.querySelectorAll('article img, article video'))
-                      .map(el => el.src)
-                      .filter(src => src && src.includes('cdninstagram'));
+      for (let i = 0; i < 3; i++) { // Scroll limit as per requirement
+        const imgs = await page.evaluate(() => {
+          return Array.from(document.querySelectorAll('article img'))
+                      .map(img => img.src)
+                      .filter(src => src.includes('cdninstagram.com'));
         });
-        newPosts.forEach(url => postUrls.add(url));
-
-        // Scroll down
+        imgs.forEach(url => postUrls.add(url));
         await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
-        await new Promise(r => setTimeout(r, 2000)); // Wait for load
-        
-        let newHeight = await page.evaluate('document.body.scrollHeight');
-        if (newHeight === lastHeight || postUrls.size > 2000) break; // 2000 limit for safety
-        lastHeight = newHeight;
-        console.log(`     - Collected ${postUrls.size} media items...`);
+        await new Promise(r => setTimeout(r, 2000));
       }
 
       for (const pUrl of Array.from(postUrls)) {
-        await safeUpload(pUrl, user, 'post');
+        await safeUpload(pUrl, user, 'posts');
       }
+      
+      console.log(`✅ @${user} Data Organized in Cloudinary.`);
     }
 
   } catch (error) {
-    console.error("❌ Fatal System Error:", error.message);
+    console.error("❌ Fatal Error:", error.message);
   } finally {
     await browser.close();
-    console.log("🏁 All Sync Tasks Completed.");
   }
 }
 
-// DUPLICATE PROTECTION LOGIC
-async function safeUpload(url, username, type) {
+// SAFE UPLOAD WITH DEDUPLICATION (Ek photo bar-bar change/repeat nahi hogi)
+async function safeUpload(url, username, category) {
   try {
-    // Generate a unique fingerprint from URL to avoid repeats
-    const fingerprint = url.split('?')[0].split('/').pop(); 
-    
-    // Check Firestore if already exists
-    const docRef = db.collection("archives").doc(fingerprint);
+    // Unique ID based on URL filename (Instagram generates unique IDs for every media)
+    const mediaId = url.split('?')[0].split('/').pop(); 
+    const docId = `${username}_${mediaId}`;
+
+    const docRef = db.collection("archives").doc(docId);
     const doc = await docRef.get();
 
-    if (doc.exists) {
-      // console.log(`  ⏩ Duplicate skipped: ${fingerprint}`);
-      return;
-    }
+    // Check if already archived to prevent repetition
+    if (doc.exists) return; 
 
     const upload = await cloudinary.uploader.upload(url, {
-      folder: `insta_vault/${username}/${type}`,
+      folder: `insta_vault/${username}/${category}`, // Folder structure by User
       resource_type: "auto"
     });
 
     await docRef.set({
       owner: username,
-      cloudinary_url: upload.secure_url,
-      original_fingerprint: fingerprint,
-      category: type,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+      url: upload.secure_url,
+      type: category,
+      media_id: mediaId,
+      time: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log(`  ✅ Saved ${type}: ${fingerprint.substring(0,10)}...`);
+    console.log(`  ➕ New ${category} saved for ${username}`);
   } catch (e) {
-    // Silent skip for errors
+    // Skip on error
   }
 }
 
