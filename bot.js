@@ -22,71 +22,83 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: V13 - Xvfb Virtual Display Mode Active...");
+  console.log("🚀 GHOST_ENGINE: V14 - Force Typing & Mobile Layout Fix...");
   
   const browser = await puppeteer.launch({ 
-    headless: false, // Xvfb ke saath 'false' hi rakhna h taaki video sahi aaye
+    headless: false, // Xvfb monitor ke liye false zaroori h
     args: [
       '--no-sandbox', 
       '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
-      '--start-maximized'
     ] 
   });
   
   const page = await browser.newPage();
-  // Virtual monitor size ke hisaab se viewport
-  await page.setViewport({ width: 1280, height: 1024 }); 
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
+  
+  // Viewport ko Mobile (iPhone) size par force karo taaki Desktop layout na aaye
+  await page.setViewport({ width: 390, height: 844 }); 
+  await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
 
   const videoPath = path.join(__dirname, 'ghost_action.mp4');
   const recorder = new PuppeteerScreenRecorder(page, {
     followNewTab: true,
     fps: 15,
-    videoFrame: { width: 1280, height: 1024 },
-    aspectRatio: '16:9',
+    videoFrame: { width: 390, height: 844 },
+    aspectRatio: '9:16',
   });
 
   try {
     await recorder.start(videoPath);
-    console.log("⏺️ Recording Started on Virtual Display...");
+    console.log("⏺️ Recording Started...");
 
     // 1. Visit Login
-    console.log("🔑 Navigating to Instagram Login...");
+    console.log("🔑 Navigating to Login Page...");
     await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
-    await new Promise(r => setTimeout(r, 7000));
+    await new Promise(r => setTimeout(r, 10000));
 
-    // 2. Slow Typing Logic
     const targetUser = process.env.INSTA_USER || "ayush_raj6888";
     const targetPass = process.env.INSTA_PASS;
 
-    console.log(`👤 Entering Username: ${targetUser}`);
-    await page.type('input[name="username"]', targetUser, { delay: 250 });
-    await new Promise(r => setTimeout(r, 2000));
-    
-    console.log("🔑 Entering Password...");
-    await page.type('input[name="password"]', targetPass, { delay: 250 });
-    
-    // Unhide password for video verification
-    await page.evaluate(() => {
-        const p = document.querySelector('input[name="password"]');
-        if (p) p.type = "text";
-    });
+    // --- 👤 USERNAME ENTRY ---
+    console.log("👤 Typing Username...");
+    await page.waitForSelector('input[name="username"]', { visible: true });
+    await page.click('input[name="username"]'); 
+    await page.focus('input[name="username"]'); 
+    await page.type('input[name="username"]', targetUser, { delay: 150 });
+
+    // --- 🔑 PASSWORD ENTRY ---
+    console.log("🔑 Typing Password...");
+    await page.waitForSelector('input[name="password"]', { visible: true });
+    await page.click('input[name="password"]');
+    await page.focus('input[name="password"]');
+    await page.type('input[name="password"]', targetPass, { delay: 150 });
+
+    // --- 👁️ JAVASCRIPT FALLBACK (Agar typing fail hui toh force paste) ---
+    await page.evaluate((u, p) => {
+        const uInp = document.querySelector('input[name="username"]');
+        const pInp = document.querySelector('input[name="password"]');
+        if (uInp && !uInp.value) uInp.value = u;
+        if (pInp && !pInp.value) pInp.value = p;
+        if (pInp) pInp.type = "text"; // Video verification ke liye unhide
+    }, targetUser, targetPass);
+
     await new Promise(r => setTimeout(r, 3000));
 
-    // 3. Click Login Button
-    console.log("🚀 Clicking Log In button...");
+    // --- 🚀 LOGIN CLICK ---
+    console.log("🚀 Clicking Log In Button...");
     await page.evaluate(() => {
-        const btn = Array.from(document.querySelectorAll('button')).find(b => 
-            b.type === 'submit' || b.innerText.includes('Log In')
+        const btns = Array.from(document.querySelectorAll('button'));
+        const loginBtn = btns.find(b => 
+            b.type === 'submit' || 
+            b.innerText.toLowerCase().includes('log')
         );
-        if (btn) {
-            btn.style.border = "10px solid red"; // Video mein highlight hoga
-            btn.click();
+        if (loginBtn) {
+            loginBtn.style.border = "5px solid red"; 
+            loginBtn.click();
         }
     });
 
-    console.log("⏳ Waiting 30s for Dashboard redirection...");
+    console.log("⏳ Waiting 30s for Dashboard...");
     await new Promise(r => setTimeout(r, 30000));
 
     // 4. Verification Check
@@ -96,15 +108,15 @@ async function runBot() {
     });
 
     if (!isLoggedIn) {
-      console.log("❌ LOGIN FAILED: Page status check karo video mein.");
+      console.log("❌ LOGIN FAIL: Video check karo, kya hua.");
     } else {
-      console.log("✅ LOGIN SUCCESS! Moving to targets...");
+      console.log("✅ LOGIN SUCCESS! Starting sync...");
       
       const targets = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
       for (const user of targets) {
         console.log(`📡 Scanning: @${user}`);
         await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-        await new Promise(r => setTimeout(r, 10000));
+        await new Promise(r => setTimeout(r, 8000));
         
         const media = await page.evaluate(() => {
           const results = [];
@@ -116,25 +128,24 @@ async function runBot() {
           return [...new Set(results)];
         });
 
-        console.log(`📊 @${user}: Found ${media.length} items.`);
+        console.log(`📊 Found ${media.length} items for @${user}`);
         for (const mUrl of media) await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
       }
     }
 
   } catch (error) {
-    console.error("❌ FATAL ERROR:", error.message);
+    console.error("❌ ERROR:", error.message);
   } finally {
     await recorder.stop();
     await browser.close();
-    console.log("⏹️ Recording Stopped. Sending to Cloudinary...");
+    console.log("⏹️ Recording Finished. Uploading...");
     
     if (fs.existsSync(videoPath)) {
       await cloudinary.uploader.upload(videoPath, { 
         resource_type: "video", 
         folder: "debug/recordings",
-        public_id: `xvfb_stealth_${Date.now()}`
-      }).then(() => console.log("✅ Video Uploaded!"))
-        .catch(e => console.log("❌ Video Upload Error:", e.message));
+        public_id: `v14_force_fix_${Date.now()}`
+      }).catch(e => console.log("Upload Error:", e.message));
     }
   }
 }
