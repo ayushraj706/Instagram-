@@ -22,11 +22,12 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-const MAX_WAIT_FOR_MEDIA = 40000; // 40 seconds max wait
+const MAX_WAIT_FOR_MEDIA = 40000; // 40 seconds max wait (only if network fallback hasn't fired)
 const POLL_INTERVAL = 800; // Check every 800ms for faster detection
+const NETWORK_CHECK_INTERVAL = 500; // Check network captures every 500ms
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: V27 - PRIVACY POPUP BYPASS & MULTI-PATHWAY SYSTEM ACTIVATED...");
+  console.log("🚀 GHOST_ENGINE: V28 - FAST-TRACK NETWORK FALLBACK & SCREEN SMASH ACTIVATED...");
   const browser = await puppeteer.launch({ 
     headless: "new", 
     args: [
@@ -42,15 +43,22 @@ async function runBot() {
 
   // Enable request interception to catch media URLs
   await page.setRequestInterception(true);
-  const capturedMediaUrls = new Set();
+  const capturedMediaUrls = new Map(); // Changed to Map to track URLs with metadata
   
   page.on('request', (request) => {
     const url = request.url();
-    // Capture video/image URLs from network requests
-    if ((url.includes('.mp4') || url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png')) && 
-        url.startsWith('http') && 
-        !url.includes('profile_pic')) {
-      capturedMediaUrls.add(url);
+    // Capture video/image URLs from network requests with metadata
+    if (url.startsWith('http') && !url.includes('profile_pic') && !url.includes('data:image')) {
+      if (url.includes('.mp4') || url.includes('video')) {
+        capturedMediaUrls.set(url, { type: 'video', timestamp: Date.now() });
+        console.log(`         🌐 Network captured VIDEO: ${url.substring(0, 80)}...`);
+      } else if (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('image')) {
+        // Only capture large images (filter out tiny icons)
+        if (!url.includes('s150x150') && !url.includes('s320x320') && !url.includes('44x44')) {
+          capturedMediaUrls.set(url, { type: 'image', timestamp: Date.now() });
+          console.log(`         🌐 Network captured IMAGE: ${url.substring(0, 80)}...`);
+        }
+      }
     }
     request.continue();
   });
@@ -88,13 +96,13 @@ async function runBot() {
       // 2. Stories Scan
       console.log(`   📸 Checking Active Stories...`);
       await page.goto(`https://www.instagram.com/stories/${user}/`, { waitUntil: 'networkidle2' });
-      await sniperCapture(page, user, 'stories_v27', capturedMediaUrls);
+      await sniperCapture(page, user, 'stories_v28', capturedMediaUrls);
 
       // 3. Highlights Scan
       for (const hUrl of highlightLinks) {
           console.log(`   🔗 Entering Highlight: ${hUrl}`);
           await page.goto(hUrl, { waitUntil: 'networkidle2' });
-          await sniperCapture(page, user, 'highlights_v27', capturedMediaUrls);
+          await sniperCapture(page, user, 'highlights_v28', capturedMediaUrls);
       }
 
       // Stop recording after first target is completely scanned
@@ -134,198 +142,282 @@ async function sniperCapture(page, username, category, capturedMediaUrls) {
             break;
         }
 
-        console.log(`\n   🎯 SLIDE ${slideIndex + 1}: DEPLOYING MULTI-PATHWAY HUNTER...`);
+        console.log(`\n   🎯 SLIDE ${slideIndex + 1}: DEPLOYING V28 FAST-TRACK SYSTEM...`);
 
-        // Clear network captured URLs for this slide
-        capturedMediaUrls.clear();
+        // ========================================
+        // 🎮 THE KEYBOARD/SCREEN SMASH HACK
+        // ========================================
+        console.log(`      🥊 SCREEN SMASH: Dismissing all overlays...`);
+        try {
+            // Click dead center to dismiss overlays (Sensitive content, 18+, Watch story, etc.)
+            await page.mouse.click(540, 960);
+            await new Promise(r => setTimeout(r, 800));
+            
+            // Force play if paused
+            await page.keyboard.press('Space');
+            await new Promise(r => setTimeout(r, 500));
+            
+            // Accept generic warnings
+            await page.keyboard.press('Enter');
+            await new Promise(r => setTimeout(r, 1000));
+            
+            console.log(`      ✅ Screen smash complete. Overlays should be dismissed.`);
+        } catch (e) {
+            console.log(`      ⚠️ Screen smash error: ${e.message}`);
+        }
 
-        // --- 🎯 THE MULTI-PATHWAY FALLBACK SYSTEM ---
-        const media = await page.evaluate(async (maxWait, pollInterval) => {
-            const startTime = Date.now();
-            let attemptCount = 0;
-            const detectionLog = [];
+        // Clear old network captures (keep only fresh ones from this slide)
+        const previousCaptureCount = capturedMediaUrls.size;
+        const cutoffTime = Date.now() - 5000; // Keep captures from last 5 seconds
+        for (const [url, data] of capturedMediaUrls.entries()) {
+            if (data.timestamp < cutoffTime) {
+                capturedMediaUrls.delete(url);
+            }
+        }
+        console.log(`      🗑️ Cleared ${previousCaptureCount - capturedMediaUrls.size} old network captures`);
 
-            while (Date.now() - startTime < maxWait) {
-                attemptCount++;
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        // ========================================
+        // 🚀 FAST-TRACK NETWORK FALLBACK
+        // ========================================
+        let foundMedia = null;
+        let usedFastTrack = false;
+        const fastTrackStartTime = Date.now();
+        const maxFastTrackWait = 8000; // Max 8 seconds for network capture
+
+        console.log(`      🚀 Fast-Track Phase: Monitoring network captures...`);
+        
+        // Fast-track loop: Check network captures frequently
+        while (Date.now() - fastTrackStartTime < maxFastTrackWait && !foundMedia) {
+            if (capturedMediaUrls.size > 0) {
+                // Get the most recent capture
+                const entries = Array.from(capturedMediaUrls.entries());
+                const [url, data] = entries[entries.length - 1];
                 
-                // ========================================
-                // RASTA 1: AUTO-PLAY & PRIVACY POPUP BYPASS
-                // ========================================
-                try {
-                    // 1A. Bypass "View story" privacy warning
-                    const viewStoryBtn = Array.from(document.querySelectorAll('div[role="button"], button'))
-                        .find(el => el.innerText && el.innerText.includes('View story'));
+                console.log(`      🎯 FAST-TRACK HIT! Network captured ${data.type} after ${((Date.now() - fastTrackStartTime) / 1000).toFixed(1)}s`);
+                foundMedia = {
+                    url: url,
+                    type: data.type,
+                    pathway: 'FAST_TRACK_NETWORK',
+                    log: [`Network capture fired instantly, bypassing 40s DOM hunt`]
+                };
+                usedFastTrack = true;
+                break;
+            }
+            
+            // Wait a bit before checking again
+            await new Promise(r => setTimeout(r, NETWORK_CHECK_INTERVAL));
+        }
 
-                    if (viewStoryBtn) {
-                        detectionLog.push(`[${elapsed}s] RASTA 1A: 'View story' privacy button detected, clicking...`);
-                        viewStoryBtn.click();
-                        await new Promise(r => setTimeout(r, 2500)); // Wait for story to actually load
-                    }
+        // ========================================
+        // 🎯 MULTI-PATHWAY FALLBACK (IF FAST-TRACK FAILED)
+        // ========================================
+        if (!foundMedia) {
+            console.log(`      ⏳ Fast-track timeout (${(maxFastTrackWait/1000)}s). Falling back to DOM hunt...`);
+            
+            foundMedia = await page.evaluate(async (maxWait, pollInterval) => {
+                const startTime = Date.now();
+                let attemptCount = 0;
+                const detectionLog = [];
 
-                    // 1B. Normal Play button bypass
-                    const playButton = document.querySelector('button[aria-label="Play"]') || 
-                                     document.querySelector('svg[aria-label="Play"]')?.closest('button') ||
-                                     document.querySelector('button svg[aria-label="Play"]')?.parentElement;
+                while (Date.now() - startTime < maxWait) {
+                    attemptCount++;
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                     
-                    if (playButton) {
-                        detectionLog.push(`[${elapsed}s] RASTA 1B: Play button detected, clicking...`);
-                        playButton.click();
-                        await new Promise(r => setTimeout(r, 1500)); // Wait for video to start
-                    }
-                } catch (e) {
-                    detectionLog.push(`[${elapsed}s] RASTA 1: Bypass check failed: ${e.message}`);
-                }
+                    // ========================================
+                    // RASTA 1: AUTO-PLAY & PRIVACY POPUP BYPASS
+                    // ========================================
+                    try {
+                        // 1A. Bypass "View story" privacy warning
+                        const viewStoryBtn = Array.from(document.querySelectorAll('div[role="button"], button'))
+                            .find(el => el.innerText && el.innerText.includes('View story'));
 
-                // ========================================
-                // RASTA 2: MULTI-LAYER VIDEO HUNTER
-                // ========================================
-                try {
-                    const videoElements = Array.from(document.querySelectorAll('video'));
-                    
-                    for (let vidIndex = 0; vidIndex < videoElements.length; vidIndex++) {
-                        const video = videoElements[vidIndex];
+                        if (viewStoryBtn) {
+                            detectionLog.push(`[${elapsed}s] RASTA 1A: 'View story' privacy button detected, clicking...`);
+                            viewStoryBtn.click();
+                            await new Promise(r => setTimeout(r, 2500));
+                        }
+
+                        // 1B. Normal Play button bypass
+                        const playButton = document.querySelector('button[aria-label="Play"]') || 
+                                         document.querySelector('svg[aria-label="Play"]')?.closest('button') ||
+                                         document.querySelector('button svg[aria-label="Play"]')?.parentElement;
                         
-                        // Method A: Check all possible src locations
-                        const possibleSources = [
-                            video.currentSrc,
-                            video.src,
-                            video.querySelector('source')?.src,
-                            video.getAttribute('src')
-                        ].filter(Boolean);
+                        if (playButton) {
+                            detectionLog.push(`[${elapsed}s] RASTA 1B: Play button detected, clicking...`);
+                            playButton.click();
+                            await new Promise(r => setTimeout(r, 1500));
+                        }
 
-                        for (const src of possibleSources) {
-                            // Method B: Blob detection and rejection
-                            if (src.includes('blob:')) {
-                                detectionLog.push(`[${elapsed}s] RASTA 2B: BLOB DETECTED (${src.substring(0, 50)}...) - Skipping blob URL`);
+                        // 1C. Click any generic "Continue" or "OK" buttons
+                        const continueBtn = Array.from(document.querySelectorAll('button, div[role="button"]'))
+                            .find(el => el.innerText && (el.innerText.includes('Continue') || el.innerText.includes('OK')));
+                        
+                        if (continueBtn) {
+                            detectionLog.push(`[${elapsed}s] RASTA 1C: Generic continue button found, clicking...`);
+                            continueBtn.click();
+                            await new Promise(r => setTimeout(r, 1500));
+                        }
+                    } catch (e) {
+                        detectionLog.push(`[${elapsed}s] RASTA 1: Bypass check failed: ${e.message}`);
+                    }
+
+                    // ========================================
+                    // RASTA 2: MULTI-LAYER VIDEO HUNTER
+                    // ========================================
+                    try {
+                        const videoElements = Array.from(document.querySelectorAll('video'));
+                        
+                        for (let vidIndex = 0; vidIndex < videoElements.length; vidIndex++) {
+                            const video = videoElements[vidIndex];
+                            
+                            // Method A: Check all possible src locations
+                            const possibleSources = [
+                                video.currentSrc,
+                                video.src,
+                                video.querySelector('source')?.src,
+                                video.getAttribute('src')
+                            ].filter(Boolean);
+
+                            for (const src of possibleSources) {
+                                // Method B: Blob detection and rejection
+                                if (src.includes('blob:')) {
+                                    detectionLog.push(`[${elapsed}s] RASTA 2B: BLOB DETECTED - Skipping`);
+                                    continue;
+                                }
+
+                                if (src.startsWith('http') && (src.includes('.mp4') || src.includes('video'))) {
+                                    detectionLog.push(`[${elapsed}s] RASTA 2: ✅ VALID VIDEO URL FOUND!`);
+                                    return { 
+                                        url: src, 
+                                        type: 'video', 
+                                        pathway: 'RASTA_2_VIDEO',
+                                        log: detectionLog 
+                                    };
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        detectionLog.push(`[${elapsed}s] RASTA 2: Video hunt error: ${e.message}`);
+                    }
+
+                    // ========================================
+                    // RASTA 3: MULTI-LAYER IMAGE HUNTER
+                    // ========================================
+                    try {
+                        const imageElements = Array.from(document.querySelectorAll('img'));
+                        
+                        // Loop backwards to catch foreground images first
+                        for (let imgIndex = imageElements.length - 1; imgIndex >= 0; imgIndex--) {
+                            const img = imageElements[imgIndex];
+                            
+                            // Method A: Get bounding box for visible size check
+                            const rect = img.getBoundingClientRect();
+                            const isLargeEnough = rect.width > 200 && rect.height > 200;
+                            
+                            if (!isLargeEnough) {
                                 continue;
                             }
 
-                            if (src.startsWith('http') && (src.includes('.mp4') || src.includes('video'))) {
-                                detectionLog.push(`[${elapsed}s] RASTA 2: ✅ VALID VIDEO URL FOUND!`);
-                                return { 
-                                    url: src, 
-                                    type: 'video', 
-                                    pathway: 'RASTA_2_VIDEO',
-                                    log: detectionLog 
-                                };
+                            // Method B: Check src attribute
+                            let imgSrc = img.src || img.getAttribute('src');
+                            
+                            // Skip data URIs
+                            if (imgSrc && imgSrc.startsWith('data:image')) {
+                                continue;
+                            }
+
+                            // Method C: Check srcset if src is missing or invalid
+                            if (!imgSrc || !imgSrc.startsWith('http')) {
+                                const srcset = img.getAttribute('srcset');
+                                if (srcset) {
+                                    const sources = srcset.split(',').map(s => s.trim().split(' ')[0]);
+                                    imgSrc = sources[sources.length - 1];
+                                    detectionLog.push(`[${elapsed}s] RASTA 3C: Using srcset`);
+                                }
+                            }
+
+                            // Final validation
+                            if (imgSrc && imgSrc.startsWith('http') && !imgSrc.includes('profile_pic')) {
+                                if (img.naturalWidth > 300 || rect.width > 300) {
+                                    detectionLog.push(`[${elapsed}s] RASTA 3: ✅ VALID IMAGE URL FOUND!`);
+                                    return { 
+                                        url: imgSrc, 
+                                        type: 'image', 
+                                        pathway: 'RASTA_3_IMAGE',
+                                        log: detectionLog 
+                                    };
+                                }
                             }
                         }
+                    } catch (e) {
+                        detectionLog.push(`[${elapsed}s] RASTA 3: Image hunt error: ${e.message}`);
                     }
-                } catch (e) {
-                    detectionLog.push(`[${elapsed}s] RASTA 2: Video hunt error: ${e.message}`);
-                }
 
-                // ========================================
-                // RASTA 3: MULTI-LAYER IMAGE HUNTER
-                // ========================================
-                try {
-                    const imageElements = Array.from(document.querySelectorAll('img'));
-                    
-                    // Loop backwards to catch foreground images first
-                    for (let imgIndex = imageElements.length - 1; imgIndex >= 0; imgIndex--) {
-                        const img = imageElements[imgIndex];
-                        
-                        // Method A: Get bounding box for visible size check
-                        const rect = img.getBoundingClientRect();
-                        const isLargeEnough = rect.width > 200 && rect.height > 200;
-                        
-                        if (!isLargeEnough) {
-                            continue; // Skip small icons and profile pics
-                        }
-
-                        // Method B: Check src attribute
-                        let imgSrc = img.src || img.getAttribute('src');
-                        
-                        // Skip data URIs
-                        if (imgSrc && imgSrc.startsWith('data:image')) {
-                            continue;
-                        }
-
-                        // Method C: Check srcset if src is missing or invalid
-                        if (!imgSrc || !imgSrc.startsWith('http')) {
-                            const srcset = img.getAttribute('srcset');
-                            if (srcset) {
-                                // Parse srcset and get the largest image
-                                const sources = srcset.split(',').map(s => s.trim().split(' ')[0]);
-                                imgSrc = sources[sources.length - 1]; // Usually the largest
-                                detectionLog.push(`[${elapsed}s] RASTA 3C: Using srcset: ${imgSrc?.substring(0, 50)}...`);
-                            }
-                        }
-
-                        // Final validation
-                        if (imgSrc && imgSrc.startsWith('http') && !imgSrc.includes('profile_pic')) {
-                            // Additional check: naturalWidth (if loaded)
-                            if (img.naturalWidth > 300 || rect.width > 300) {
-                                detectionLog.push(`[${elapsed}s] RASTA 3: ✅ VALID IMAGE URL FOUND!`);
-                                return { 
-                                    url: imgSrc, 
-                                    type: 'image', 
-                                    pathway: 'RASTA_3_IMAGE',
-                                    log: detectionLog 
-                                };
-                            }
-                        }
+                    // ========================================
+                    // LOGIN BLOCK DETECTION
+                    // ========================================
+                    const bodyText = document.body.innerText || '';
+                    if (bodyText.includes('Log in to Instagram') || 
+                        bodyText.includes('Log In') || 
+                        bodyText.includes('Sign Up')) {
+                        detectionLog.push(`[${elapsed}s] ⛔ LOGIN WALL DETECTED`);
+                        return { 
+                            error: 'LOGIN_REQUIRED', 
+                            log: detectionLog 
+                        };
                     }
-                } catch (e) {
-                    detectionLog.push(`[${elapsed}s] RASTA 3: Image hunt error: ${e.message}`);
+
+                    // Wait before next polling attempt
+                    await new Promise(r => setTimeout(r, pollInterval));
                 }
 
-                // ========================================
-                // LOGIN BLOCK DETECTION
-                // ========================================
-                const bodyText = document.body.innerText || '';
-                if (bodyText.includes('Log in to Instagram') || 
-                    bodyText.includes('Log In') || 
-                    bodyText.includes('Sign Up')) {
-                    detectionLog.push(`[${elapsed}s] ⛔ LOGIN WALL DETECTED`);
-                    return { 
-                        error: 'LOGIN_REQUIRED', 
-                        log: detectionLog 
-                    };
-                }
-
-                // Wait before next polling attempt
-                await new Promise(r => setTimeout(r, pollInterval));
-            }
-
-            detectionLog.push(`[${maxWait/1000}s] ⏰ TIMEOUT - No media found after ${attemptCount} attempts`);
-            return { 
-                error: 'TIMEOUT', 
-                log: detectionLog 
-            };
-        }, MAX_WAIT_FOR_MEDIA, POLL_INTERVAL);
-
-        // Log the detection process for debugging
-        if (media && media.log) {
-            console.log(`      📊 Detection Log:`);
-            media.log.forEach(entry => console.log(`         ${entry}`));
+                detectionLog.push(`[${maxWait/1000}s] ⏰ TIMEOUT - No media found after ${attemptCount} attempts`);
+                return { 
+                    error: 'TIMEOUT', 
+                    log: detectionLog 
+                };
+            }, MAX_WAIT_FOR_MEDIA, POLL_INTERVAL);
         }
 
-        // Handle detection results
-        if (media && media.error === 'LOGIN_REQUIRED') {
+        // ========================================
+        // 📊 LOG DETECTION RESULTS
+        // ========================================
+        if (foundMedia && foundMedia.log) {
+            console.log(`      📊 Detection Log:`);
+            foundMedia.log.forEach(entry => console.log(`         ${entry}`));
+        }
+
+        // ========================================
+        // 🎬 HANDLE DETECTION RESULTS
+        // ========================================
+        if (foundMedia && foundMedia.error === 'LOGIN_REQUIRED') {
             console.log(`      ⛔ CRITICAL: Instagram blocked access. Cookies expired or invalid!`);
             console.log(`      💡 Check the hunting_debug.mp4 video to see login prompts.`);
             break; 
-        } else if (media && media.error === 'TIMEOUT') {
-            console.log(`      ⚠️ SLIDE ${slideIndex + 1}: All pathways exhausted. No media extracted.`);
+        } else if (foundMedia && foundMedia.error === 'TIMEOUT') {
+            console.log(`      ⚠️ SLIDE ${slideIndex + 1}: All pathways exhausted. Checking final network fallback...`);
             
-            // Check network captured URLs as last resort
+            // Final check of network captured URLs
             if (capturedMediaUrls.size > 0) {
-                console.log(`      🌐 FALLBACK: Found ${capturedMediaUrls.size} URLs from network capture`);
-                const networkUrl = Array.from(capturedMediaUrls)[0];
-                const isVideo = networkUrl.includes('.mp4');
-                console.log(`      🎯 Using network-captured ${isVideo ? 'video' : 'image'}: ${networkUrl.substring(0, 80)}...`);
+                const entries = Array.from(capturedMediaUrls.entries());
+                const [networkUrl, networkData] = entries[entries.length - 1];
+                console.log(`      🌐 FINAL FALLBACK: Using network-captured ${networkData.type}`);
+                console.log(`      📍 URL: ${networkUrl.substring(0, 80)}...`);
                 
-                const isNew = await safeSync(networkUrl, username, category, isVideo);
-                if (isNew && !isVideo) {
+                const isNew = await safeSync(networkUrl, username, category, networkData.type === 'video');
+                if (isNew && networkData.type === 'image') {
                     const aiResponse = await analyzeWithGemini(networkUrl);
                     await updateAIDesc(username, networkUrl, aiResponse);
                 }
+            } else {
+                console.log(`      ❌ No media found via any pathway. Skipping slide.`);
             }
-        } else if (media && media.url) {
-            console.log(`      🎯 ${media.pathway}: TARGET LOCKED!`);
-            console.log(`      📍 URL: ${media.url.substring(0, 100)}...`);
+        } else if (foundMedia && foundMedia.url) {
+            console.log(`      🎯 ${foundMedia.pathway}: TARGET LOCKED!`);
+            console.log(`      📍 URL: ${foundMedia.url.substring(0, 100)}...`);
+            if (usedFastTrack) {
+                console.log(`      ⚡ Fast-track saved ${((MAX_WAIT_FOR_MEDIA - (Date.now() - fastTrackStartTime)) / 1000).toFixed(1)}s by bypassing DOM hunt!`);
+            }
 
             // ❤️ Like the story (optional)
             try {
@@ -338,18 +430,18 @@ async function sniperCapture(page, username, category, capturedMediaUrls) {
                     }
                 });
             } catch (e) {
-                console.log(`      ❤️ Like button not found or error: ${e.message}`);
+                console.log(`      ❤️ Like attempt failed: ${e.message}`);
             }
 
             // 💾 IMMEDIATE SYNC - STRICT WAIT BEFORE MOVING FORWARD
             console.log(`      ⏸️ PAUSING HUNT - Starting immediate sync to Cloudinary...`);
-            const isVideo = media.type === 'video';
-            const isNew = await safeSync(media.url, username, category, isVideo);
+            const isVideo = foundMedia.type === 'video';
+            const isNew = await safeSync(foundMedia.url, username, category, isVideo);
             
-            if (isNew && media.type === 'image') {
+            if (isNew && foundMedia.type === 'image') {
                 console.log(`      🤖 Running Gemini AI Analysis...`);
-                const aiResponse = await analyzeWithGemini(media.url);
-                await updateAIDesc(username, media.url, aiResponse);
+                const aiResponse = await analyzeWithGemini(foundMedia.url);
+                await updateAIDesc(username, foundMedia.url, aiResponse);
                 console.log(`      ✅ AI Analysis Complete: ${aiResponse.substring(0, 60)}...`);
             }
             
@@ -373,7 +465,7 @@ async function safeSync(url, username, category, isVideo) {
                        url.split('?')[0].split('/').filter(p => p.length > 10).pop()?.substring(0, 45) ||
                        Date.now().toString();
         
-        const docId = `V27_${username}_${mediaId}`;
+        const docId = `V28_${username}_${mediaId}`;
         const docRef = db.collection("archives").doc(docId);
         
         const doc = await docRef.get();
@@ -384,7 +476,7 @@ async function safeSync(url, username, category, isVideo) {
 
         console.log(`      📤 Uploading to Cloudinary...`);
         const upload = await cloudinary.uploader.upload(url, { 
-            folder: `insta_vault_v27/${username}/${category}`, 
+            folder: `insta_vault_v28/${username}/${category}`, 
             resource_type: isVideo ? "video" : "image",
             timeout: 120000 // 2 minute timeout for large files
         });
@@ -396,7 +488,7 @@ async function safeSync(url, username, category, isVideo) {
             type: category, 
             is_video: isVideo, 
             time: admin.firestore.FieldValue.serverTimestamp(),
-            version: 'V27_PRIVACY_BYPASS'
+            version: 'V28_FAST_TRACK'
         });
         
         console.log(`      ✅ [BULLSEYE] Archived successfully!`);
@@ -414,7 +506,7 @@ async function safeSync(url, username, category, isVideo) {
 async function analyzeWithGemini(imageUrl) {
     try {
         console.log(`      🤖 Fetching image for AI analysis...`);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); // Fixed model name
         const prompt = "Identify Area and Describe: [Area] - [Action]";
         
         const response = await fetch(imageUrl);
@@ -422,7 +514,10 @@ async function analyzeWithGemini(imageUrl) {
             throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
         }
         
-        const buffer = await response.buffer();
+        // Fixed deprecation warning: Changed from response.buffer() to arrayBuffer
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
         const result = await model.generateContent([
             prompt, 
             { 
@@ -447,7 +542,7 @@ async function updateAIDesc(username, url, desc) {
                        url.split('?')[0].split('/').filter(p => p.length > 10).pop()?.substring(0, 45) ||
                        Date.now().toString();
         
-        await db.collection("archives").doc(`V27_${username}_${mediaId}`).update({ 
+        await db.collection("archives").doc(`V28_${username}_${mediaId}`).update({ 
             ai_report: desc,
             ai_analyzed_at: admin.firestore.FieldValue.serverTimestamp()
         });
