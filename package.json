@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "ghost": "node bot.js" 
   },
   "dependencies": {
     "next": "latest",
@@ -24,7 +25,12 @@
     "next-themes": "latest",
     "clsx": "latest",
     "tailwind-merge": "latest",
-    "axios": "latest"
+    "axios": "latest",
+    "node-fetch": "^3.3.2",
+    "puppeteer": "latest",
+    "puppeteer-extra": "latest",
+    "puppeteer-extra-plugin-stealth": "latest",
+    "puppeteer-screen-recorder": "latest"
   },
   "devDependencies": {
     "typescript": "latest",
