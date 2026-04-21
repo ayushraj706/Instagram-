@@ -14,7 +14,7 @@ concurrency:
 jobs:
   automate:
     runs-on: ubuntu-latest
-    # 🔥 FIX: Timeout ko 15 se badha kar 60 kar diya h taaki Deep Scan pura ho sake
+    # 🔥 Deep Scan aur AI Analysis ke liye 60 minutes ka timeout
     timeout-minutes: 60       
 
     steps:
@@ -25,14 +25,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm' # NPM dependencies ko cache karega build fast karne ke liye
+          cache: 'npm'
 
       # --- 💾 SESSION CACHING ---
       - name: 💾 Cache Browser Session
         uses: actions/cache@v4
         with:
           path: ./user_data
-          key: ${{ runner.os }}-insta-session-v21 # Version update kar diya h
+          key: ${{ runner.os }}-insta-session-v22 # Version bump to v22
           restore-keys: |
             ${{ runner.os }}-insta-session-
 
@@ -46,25 +46,33 @@ jobs:
             libu2f-udev libvulkan1
 
       - name: 📦 Install Project Packages
+        # Naye packages (Gemini aur node-fetch) yahan jodd diye hain
         run: |
           npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth \
-          cloudinary firebase-admin puppeteer-screen-recorder
+          cloudinary firebase-admin puppeteer-screen-recorder \
+          @google/generative-ai node-fetch
 
       - name: 👻 Run Ghost Stealth Bot (With Xvfb Display)
-        # xvfb-run browser ko virtual monitor deta h. 
-        # Resolution 1280x1024 rakha h taaki HD content load ho.
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" node bot.js
         env:
+          # --- Instagram & Auth ---
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           INSTA_USER: ${{ secrets.INSTA_USER }}
           INSTA_PASS: ${{ secrets.INSTA_PASS }}
+          
+          # --- Cloudinary ---
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          
+          # --- Firebase ---
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+          
+          # --- 🔥 Gemini AI Secret ---
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: ✅ Status Check
-        if: always() # Ye step hamesha chalega chahe build fail ho ya pass
+        if: always()
         run: |
-          echo "Ghost V21 Deep Scan Mission Finished!"
+          echo "Ghost V22 Deep AI Mission Finished!"
           
