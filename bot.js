@@ -22,130 +22,121 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 async function runBot() {
-  console.log("🚀 GHOST_ENGINE: V14 - Force Typing & Mobile Layout Fix...");
+  console.log("🚀 GHOST_ENGINE: V15 - Cookie Injection & High-Def Recording...");
   
   const browser = await puppeteer.launch({ 
-    headless: false, // Xvfb monitor ke liye false zaroori h
+    headless: "new", // GitHub Actions ke liye 'new' best h
     args: [
       '--no-sandbox', 
       '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
+      '--window-size=1280,720'
     ] 
   });
   
   const page = await browser.newPage();
   
-  // Viewport ko Mobile (iPhone) size par force karo taaki Desktop layout na aaye
+  // Mobile Viewport Force (iPhone 13 Pro layout)
   await page.setViewport({ width: 390, height: 844 }); 
   await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
 
   const videoPath = path.join(__dirname, 'ghost_action.mp4');
   const recorder = new PuppeteerScreenRecorder(page, {
     followNewTab: true,
-    fps: 15,
+    fps: 25, // Strong video ke liye FPS badha diya
     videoFrame: { width: 390, height: 844 },
     aspectRatio: '9:16',
   });
 
   try {
+    // 1. Start Recording BEFORE anything else
     await recorder.start(videoPath);
     console.log("⏺️ Recording Started...");
 
-    // 1. Visit Login
-    console.log("🔑 Navigating to Login Page...");
-    await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2', timeout: 60000 });
-    await new Promise(r => setTimeout(r, 10000));
+    // --- 🍪 STEP: COOKIE INJECTION (Tumhare App wala Data) ---
+    if (process.env.INSTA_COOKIES) {
+        console.log("🍪 Injecting Secret Cookies from App...");
+        const cookies = JSON.parse(process.env.INSTA_COOKIES);
+        await page.setCookie(...cookies);
+    }
 
-    const targetUser = process.env.INSTA_USER || "ayush_raj6888";
-    const targetPass = process.env.INSTA_PASS;
+    // 2. Visit Instagram
+    console.log("🌐 Opening Instagram...");
+    await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2', timeout: 60000 });
+    await new Promise(r => setTimeout(r, 5000)); // Render hone ka wait karo
 
-    // --- 👤 USERNAME ENTRY ---
-    console.log("👤 Typing Username...");
-    await page.waitForSelector('input[name="username"]', { visible: true });
-    await page.click('input[name="username"]'); 
-    await page.focus('input[name="username"]'); 
-    await page.type('input[name="username"]', targetUser, { delay: 150 });
-
-    // --- 🔑 PASSWORD ENTRY ---
-    console.log("🔑 Typing Password...");
-    await page.waitForSelector('input[name="password"]', { visible: true });
-    await page.click('input[name="password"]');
-    await page.focus('input[name="password"]');
-    await page.type('input[name="password"]', targetPass, { delay: 150 });
-
-    // --- 👁️ JAVASCRIPT FALLBACK (Agar typing fail hui toh force paste) ---
-    await page.evaluate((u, p) => {
-        const uInp = document.querySelector('input[name="username"]');
-        const pInp = document.querySelector('input[name="password"]');
-        if (uInp && !uInp.value) uInp.value = u;
-        if (pInp && !pInp.value) pInp.value = p;
-        if (pInp) pInp.type = "text"; // Video verification ke liye unhide
-    }, targetUser, targetPass);
-
-    await new Promise(r => setTimeout(r, 3000));
-
-    // --- 🚀 LOGIN CLICK ---
-    console.log("🚀 Clicking Log In Button...");
-    await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const loginBtn = btns.find(b => 
-            b.type === 'submit' || 
-            b.innerText.toLowerCase().includes('log')
-        );
-        if (loginBtn) {
-            loginBtn.style.border = "5px solid red"; 
-            loginBtn.click();
-        }
+    // 3. Verification: Kya hum login ho chuke hain?
+    let isLoggedIn = await page.evaluate(() => {
+        return !!document.querySelector('svg[aria-label="Home"]') || !!document.querySelector('nav');
     });
 
-    console.log("⏳ Waiting 30s for Dashboard...");
-    await new Promise(r => setTimeout(r, 30000));
+    // --- 🛠️ FALLBACK: Agar Cookie kaam nahi ki toh Manual Login ---
+    if (!isLoggedIn && process.env.INSTA_PASS) {
+        console.log("⚠️ Cookies failed or expired. Trying Manual Login...");
+        await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle2' });
+        
+        const targetUser = process.env.INSTA_USER || "ayush_raj6888";
+        const targetPass = process.env.INSTA_PASS;
 
-    // 4. Verification Check
-    const isLoggedIn = await page.evaluate(() => {
-        return !document.body.innerText.includes('Log In') && 
-               (!!document.querySelector('nav') || !!document.querySelector('svg[aria-label="Home"]'));
-    });
+        await page.waitForSelector('input[name="username"]', { visible: true });
+        await page.type('input[name="username"]', targetUser, { delay: 100 });
+        await page.type('input[name="password"]', targetPass, { delay: 100 });
+        
+        await page.click('button[type="submit"]');
+        console.log("⏳ Waiting for manual login redirect...");
+        await new Promise(r => setTimeout(r, 15000));
+        
+        isLoggedIn = await page.evaluate(() => !!document.querySelector('nav'));
+    }
 
     if (!isLoggedIn) {
-      console.log("❌ LOGIN FAIL: Video check karo, kya hua.");
+      console.log("❌ LOGIN FAIL: Check the video later.");
     } else {
-      console.log("✅ LOGIN SUCCESS! Starting sync...");
-      
+      console.log("✅ LOGIN SUCCESS! Bot is in.");
+
       const targets = ["_anshu_2101", "_cool_butterfly_.6284", "dee_pu3477", "ritu_singh785903"];
+      
       for (const user of targets) {
         console.log(`📡 Scanning: @${user}`);
         await page.goto(`https://www.instagram.com/${user}/`, { waitUntil: 'networkidle2' });
-        await new Promise(r => setTimeout(r, 8000));
+        await new Promise(r => setTimeout(r, 5000)); // Strong video ke liye wait
+        
+        // Screenshot for debug
+        console.log(`📸 Capturing @${user}`);
         
         const media = await page.evaluate(() => {
           const results = [];
           const items = document.querySelectorAll('img[srcset], article img, video, div._aagv img');
           items.forEach(el => {
-            const src = el.src || el.srcset?.split(' ')[0] || el.querySelector('source')?.src;
+            const src = el.src || el.srcset?.split(' ')[0];
             if (src && src.includes('cdninstagram.com')) results.push(src);
           });
           return [...new Set(results)];
         });
 
         console.log(`📊 Found ${media.length} items for @${user}`);
-        for (const mUrl of media) await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
+        for (const mUrl of media) {
+            await safeUpload(mUrl, user, mUrl.includes('.mp4') ? 'videos' : 'posts');
+        }
       }
     }
 
   } catch (error) {
-    console.error("❌ ERROR:", error.message);
+    console.error("❌ CRITICAL ERROR:", error.message);
   } finally {
+    console.log("⏹️ Mission Complete. Stopping Recorder...");
     await recorder.stop();
     await browser.close();
-    console.log("⏹️ Recording Finished. Uploading...");
     
+    // Video upload to Cloudinary for proof
     if (fs.existsSync(videoPath)) {
+      console.log("☁️ Uploading Evidence Video...");
       await cloudinary.uploader.upload(videoPath, { 
         resource_type: "video", 
-        folder: "debug/recordings",
-        public_id: `v14_force_fix_${Date.now()}`
-      }).catch(e => console.log("Upload Error:", e.message));
+        folder: "ghost/sessions",
+        public_id: `session_${Date.now()}`
+      }).then(res => console.log("🎬 Video Link:", res.secure_url))
+      .catch(e => console.log("Video Upload Error:", e.message));
     }
   }
 }
@@ -155,13 +146,25 @@ async function safeUpload(url, username, category) {
     const mediaId = url.split('?')[0].split('/').pop().substring(0, 45); 
     const docId = `${username}_${mediaId}`;
     const docRef = db.collection("archives").doc(docId);
+    
     const doc = await docRef.get();
     if (doc.exists) return; 
 
-    const upload = await cloudinary.uploader.upload(url, { folder: `insta_vault/${username}/${category}`, resource_type: "auto" });
-    await docRef.set({ owner: username, url: upload.secure_url, type: category, time: admin.firestore.FieldValue.serverTimestamp() });
-    console.log(`      ✅ Saved: ${category}`);
-  } catch (e) {}
+    const upload = await cloudinary.uploader.upload(url, { 
+        folder: `insta_vault/${username}/${category}`, 
+        resource_type: "auto" 
+    });
+
+    await docRef.set({ 
+        owner: username, 
+        url: upload.secure_url, 
+        type: category, 
+        time: admin.firestore.FieldValue.serverTimestamp() 
+    });
+    console.log(`      ✅ Saved to Vault: ${category}`);
+  } catch (e) {
+    console.log("      ❌ Upload Skip");
+  }
 }
 
 runBot();
