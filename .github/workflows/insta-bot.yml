@@ -2,8 +2,8 @@ name: BaseKey Ghost Engine - Auto Gateway
 
 on:
   schedule:
-    - cron: '0 */6 * * *'      # Har 6 ghante mein automatic chalega
-  workflow_dispatch:          # Manual Run button ke liye
+    - cron: '0 */6 * * *'      # Har 6 ghante mein apne aap chalega
+  workflow_dispatch:          # Manual 'Run' button ke liye
   repository_dispatch:        
     types: [start_ghost_automation]
 
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   automate:
     runs-on: ubuntu-latest
-    # 🔥 Deep Scan aur AI Analysis ke liye 60 minutes ka timeout
+    # 🔥 Deep Scan ke liye 60 minutes ka timeout fix rakha h
     timeout-minutes: 60       
 
     steps:
@@ -25,14 +25,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # 🚫 Yahan se 'cache: npm' hata diya h taaki lock-file wala error na aaye
 
       # --- 💾 SESSION CACHING ---
       - name: 💾 Cache Browser Session
         uses: actions/cache@v4
         with:
           path: ./user_data
-          key: ${{ runner.os }}-insta-session-v22 # Version bump to v22
+          key: ${{ runner.os }}-insta-session-v22
           restore-keys: |
             ${{ runner.os }}-insta-session-
 
@@ -46,7 +46,7 @@ jobs:
             libu2f-udev libvulkan1
 
       - name: 📦 Install Project Packages
-        # Naye packages (Gemini aur node-fetch) yahan jodd diye hain
+        # Naye AI aur fetch packages yahan jodd diye hain
         run: |
           npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth \
           cloudinary firebase-admin puppeteer-screen-recorder \
@@ -55,20 +55,14 @@ jobs:
       - name: 👻 Run Ghost Stealth Bot (With Xvfb Display)
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" node bot.js
         env:
-          # --- Instagram & Auth ---
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           INSTA_USER: ${{ secrets.INSTA_USER }}
           INSTA_PASS: ${{ secrets.INSTA_PASS }}
-          
-          # --- Cloudinary ---
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-          
-          # --- Firebase ---
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
-          
-          # --- 🔥 Gemini AI Secret ---
+          # 🔥 Gemini Secret yahan hona bahut zaroori h
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: ✅ Status Check
