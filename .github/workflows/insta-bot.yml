@@ -14,7 +14,8 @@ concurrency:
 jobs:
   automate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15       
+    # 🔥 FIX: Timeout ko 15 se badha kar 60 kar diya h taaki Deep Scan pura ho sake
+    timeout-minutes: 60       
 
     steps:
       - name: 📂 Checkout Repository
@@ -24,18 +25,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm' # NPM dependencies ko cache karega build fast karne ke liye
 
       # --- 💾 SESSION CACHING ---
       - name: 💾 Cache Browser Session
         uses: actions/cache@v4
         with:
           path: ./user_data
-          key: ${{ runner.os }}-insta-session-v13
+          key: ${{ runner.os }}-insta-session-v21 # Version update kar diya h
           restore-keys: |
             ${{ runner.os }}-insta-session-
 
       - name: 🛠️ Install Xvfb, FFMPEG & Puppeteer Deps
-        # Yahan 'xvfb' install ho raha h jo virtual screen banayega
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -50,7 +51,8 @@ jobs:
           cloudinary firebase-admin puppeteer-screen-recorder
 
       - name: 👻 Run Ghost Stealth Bot (With Xvfb Display)
-        # 'xvfb-run' command browser ko ek virtual monitor (1280x1024) deta h
+        # xvfb-run browser ko virtual monitor deta h. 
+        # Resolution 1280x1024 rakha h taaki HD content load ho.
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" node bot.js
         env:
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
@@ -62,6 +64,7 @@ jobs:
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
 
       - name: ✅ Status Check
-        if: success()
-        run: echo "Ghost V13 Stealth Sync Completed!"
-        
+        if: always() # Ye step hamesha chalega chahe build fail ho ya pass
+        run: |
+          echo "Ghost V21 Deep Scan Mission Finished!"
+          
