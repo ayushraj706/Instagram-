@@ -13,8 +13,7 @@ concurrency:
 
 jobs:
   automate:
-    # 🔥 TRICK 1: ubuntu-latest ki jagah macos-latest. 
-    # Mac cloud IPs ko Instagram jaldi block nahi karta.
+    # Mac OS use kar rahe hain taaki IP block ka risk kam ho
     runs-on: macos-latest
     
     timeout-minutes: 30       
@@ -26,17 +25,20 @@ jobs:
       - name: 🐍 Setup Python
         uses: actions/setup-python@v4
         with:
-          # 🔥 TRICK 2: Python 3.11 set kiya taaki pichli baar wali 'FutureWarning' na aaye.
           python-version: '3.11'
 
-      - name: 📦 Install Python Packages
+      - name: 📦 Install Python Packages & Playwright
         run: |
           pip install -r requirements.txt
+          # 🔥 Playwright aur browser binaries install karna zaroori hai
+          pip install playwright
+          playwright install chromium
 
       - name: 👻 Run Ghost API Bot (V29)
         run: python bot.py
         env:
-          IG_SESSIONID: ${{ secrets.IG_SESSIONID }}
+          # Aapke saare secrets yahan linked hain
+          INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
