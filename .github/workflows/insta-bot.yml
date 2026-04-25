@@ -1,11 +1,9 @@
-name: BaseKey Ghost Engine - API Gateway V29
+name: BaseKey Ghost Engine - API Gateway V29.1
 
 on:
   schedule:
-    - cron: '0 */6 * * *'      # Har 6 ghante mein chalega
-  workflow_dispatch:          # Manual 'Run' button ke liye
-  repository_dispatch:        
-    types: [start_ghost_automation]
+    - cron: '0 */6 * * *'      # Har 6 ghante mein
+  workflow_dispatch:          # Manual run button
 
 concurrency:
   group: ghost-sync-group
@@ -13,9 +11,7 @@ concurrency:
 
 jobs:
   automate:
-    # Mac OS use kar rahe hain taaki IP block ka risk kam ho
-    runs-on: macos-latest
-    
+    runs-on: macos-latest     # IP block se bachne ke liye best hai
     timeout-minutes: 30       
 
     steps:
@@ -27,17 +23,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Install Python Packages & Playwright
+      - name: 📦 Install Dependencies
         run: |
-          pip install -r requirements.txt
-          # 🔥 Playwright aur browser binaries install karna zaroori hai
-          pip install playwright
+          pip install --upgrade pip
+          pip install playwright playwright-stealth cloudinary firebase-admin google-genai requests
+          # 🔥 Playwright browser install karna sabse zaroori step hai
           playwright install chromium
 
-      - name: 👻 Run Ghost API Bot (V29)
+      - name: 👻 Run Ghost API Bot
         run: python bot.py
         env:
-          # Aapke saare secrets yahan linked hain
           INSTA_COOKIES: ${{ secrets.INSTA_COOKIES }}
           CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
