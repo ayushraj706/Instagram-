@@ -5,9 +5,9 @@ import cloudinary
 import cloudinary.uploader
 import firebase_admin
 from firebase_admin import credentials, firestore
-import google.generativeai as genai
+from google import genai # Naya package warnings se bachne ke liye
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
+from playwright_stealth import stealth # Fix: stealth_async hata kar stealth kiya
 import requests
 
 # ⚙️ CONFIG
@@ -16,7 +16,9 @@ cloudinary.config(
     api_key=os.environ.get('CLOUDINARY_API_KEY'),
     api_secret=os.environ.get('CLOUDINARY_API_SECRET')
 )
-genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
+
+# Naya Gemini Client (V1.5 Flash)
+client = genai.Client(api_key=os.environ.get('GEMINI_API_KEY'))
 
 if not firebase_admin._apps:
     cred_json = json.loads(os.environ.get('FIREBASE_KEY'))
@@ -25,17 +27,17 @@ db = firestore.client()
 
 captured_media_urls = {}
 
-# --- Gemini AI Analysis ---
+# --- Gemini AI Analysis (Updated Logic) ---
 async def analyze_with_gemini(image_url):
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
-        prompt = "Identify Area and Describe: [Area] - [Action]"
+        print(f"      🤖 AI: Analysing image...")
         response = requests.get(image_url)
         if response.status_code == 200:
-            result = model.generate_content([
-                prompt,
-                {"mime_type": "image/jpeg", "data": response.content}
-            ])
+            # Naye Client ke hisaab se generation logic
+            result = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=["Identify Area and Describe: [Area] - [Action]", response.content]
+            )
             return result.text
     except Exception as e:
         print(f"      ⚠️ AI Error: {e}")
@@ -81,16 +83,18 @@ async def handle_request(request):
 
 async def run_bot():
     async with async_playwright() as p:
-        print("🚀 GHOST_ENGINE: V28 (Python) - STARTING...")
+        print("🚀 GHOST_ENGINE: V28.1 - STARTING MISSION...")
         browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
         context = await browser.new_context(viewport={'width': 1080, 'height': 1920})
         page = await context.new_page()
-        await stealth_async(page)
+        
+        # 🔥 FIX: await stealth_async(page) ki jagah ab sirf stealth(page)
+        await stealth(page)
 
         # 🍪 Apply Cookies
         cookies_env = os.environ.get('INSTA_COOKIES')
         if cookies_env:
-            print("🍪 Injecting Cookies...")
+            print("🍪 Injecting Cookies for Session-based login...")
             await context.add_cookies(json.loads(cookies_env))
 
         page.on("request", handle_request)
@@ -99,41 +103,39 @@ async def run_bot():
         for user in targets:
             print(f"\n🕵️ Target Locked: @{user}")
             try:
-                # Page load logic with Status check
                 response = await page.goto(f"https://www.instagram.com/stories/{user}/")
                 
-                # --- ERROR LOGGING SYSTEM ---
+                # --- IP BLOCK DETECTION ---
                 if response.status in [403, 429]:
                     print(f"🚨 ERROR: IP BLOCK HAI! (Status: {response.status})")
-                    print("💡 Tip: GitHub Actions ki IP block ho gayi hai. Workflows mein macos-latest use karein.")
+                    print("💡 Tip: macos-latest hi use karein GitHub workflow mein.")
                     break
                 
-                await asyncio.sleep(5) # Wait for page content
+                await asyncio.sleep(5) 
 
+                # --- COOKIE EXPIRY DETECTION ---
                 if "login" in page.url or await page.query_selector('input[name="username"]'):
                     print("🚨 ERROR: COOKIES EXPIRED/BLOCK HAIN!")
-                    print("💡 Tip: Browser se naya 'sessionid' nikaal kar GitHub Secrets update karein.")
+                    print("💡 Tip: Browser se naya sessionid nikaal kar update karein.")
                     break
 
                 print(f"✅ Access Granted! Scanning @{user}...")
 
                 for slide in range(10): 
                     if "/stories/" not in page.url: break
-                    
-                    # SCREEN SMASH: Clear overlays
-                    await page.mouse.click(540, 960)
+                    await page.mouse.click(540, 960) 
                     await asyncio.sleep(2)
 
                     if captured_media_urls:
                         latest_url = list(captured_media_urls.keys())[-1]
                         media_data = captured_media_urls[latest_url]
-                        
                         is_video = media_data['type'] == 'video'
+                        
                         is_new, doc_id = await safe_sync(latest_url, user, "stories", is_video)
                         
                         if is_new and not is_video:
-                            desc = await analyze_with_gemini(latest_url)
-                            db.collection("archives").document(doc_id).update({"ai_report": desc})
+                            report = await analyze_with_gemini(latest_url)
+                            db.collection("archives").document(doc_id).update({"ai_report": report})
                     
                     await page.keyboard.press("ArrowRight")
                     await asyncio.sleep(3)
@@ -146,3 +148,4 @@ async def run_bot():
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
+    
