@@ -1,6 +1,0 @@
-playwright
-playwright-stealth
-cloudinary
-firebase-admin
-google-generativeai
-requests
